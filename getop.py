@@ -48,7 +48,7 @@ class tcp_server(Thread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # Bind the socket to the port
-        print '%s : starting up on %s:%i' % (self.name, self.address, self.port)
+        # print '%s : starting up on %s:%i' % (self.name, self.address, self.port)
         self.sock.bind((self.address, self.port))
 
         # Listen for incoming connections
@@ -248,19 +248,6 @@ def main():
             praat = Praat(addr[0], info, args.link)
             praat.start()
             lpraat.append(praat)
-            # sleep(1)
-            # send_msg(addr[0], info["port"], dict(id=info["id"]))
-
-        #     srv = tcp_server("Server %i" % (i+1), SERV_NAME, SERV_START_PORT+i+1)
-        #     srv.start()
-        #     lserver.append(srv)
-        #     lprocess.append(Popen(["./praat", "res.praat", SERV_NAME, str(SERV_START_PORT+i+1)], stdout=PIPE))
-
-        # print "Wait..."
-        # for pos, process in enumerate(lprocess):
-        #     out, err = process.communicate()
-        #     print "%s - stdout : " % lserver[pos].name, out.replace('\n', " - ")
-
         
     except KeyboardInterrupt:
         print "Stopping..."

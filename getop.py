@@ -10,19 +10,22 @@ entry-point : main()
 """
 
 import sys
+import os
 import json
 import socket
 import argparse
+import base64
 from time import time, sleep
 from threading import Thread
 from subprocess import Popen, PIPE
 
+from pylib.common import RingList, send_udp_msg
 
 SERV_NAME = "localhost"
 SERV_PORT = 5005
 PRAAT_START_PORT = 10000
 PRAAT_PATH = "./praat"
-SOCKET_BUFFER = 1500
+SOCKET_BUFFER = 50000
 
 
 class tcp_server(Thread):
@@ -122,14 +125,20 @@ class PortList(object):
     lports = None
 
     def config(self, start, end):
+        # if self.lports is None:
+        #     self.lports = range(start, end)
         if self.lports is None:
-            self.lports = range(start, end)
+            self.lports = RingList()
+            for i in range(start, end):
+                self.lports.add(i)
 
     def get(self):
-        return self.lports.pop()
+        # return self.lports.pop()
+        return self.lports.get()
 
     def free(self, p):
-        self.lports.append(p)
+        # self.lports.append(p)
+        pass
 
 
 
@@ -154,9 +163,11 @@ class Praat(Thread):
         stdo = ""
         stde = ""
         res = ""
+        start_t = time()
+        port = pl.get()
 
         try:
-            port = pl.get()
+            self.file_write()
 
             # get sendpraat
             self.connect = tcp_server("Thread %s - Id %i" % (self.address, self.info["id"]), SERV_NAME, port)
@@ -164,7 +175,7 @@ class Praat(Thread):
 
             # start praat
             start_t = time()
-            self.process = Popen([self.praat, "res.praat", SERV_NAME, str(port)], stdout=PIPE)
+            self.process = Popen([self.praat, self.file, SERV_NAME, str(port)], stdout=PIPE) #res.praat : test file
 
             # print "%s Wait..." % self.pref
             stdo, stde = self.process.communicate()
@@ -176,8 +187,9 @@ class Praat(Thread):
         except OSError as e:
             stde = str(e)
         finally:
-            send_msg(self.address, self.info["port"], dict(id=self.info["id"], stdout=stdo, stderr=stde, time=(time() - start_t), result=res))
+            send_udp_msg(self.address, self.info["port"], dict(id=self.info["id"], stdout=stdo, stderr=stde, time=(time() - start_t), result=res))
             pl.free(port)
+            self.file_del()
             if self.connect is not None:
                 self.connect.stop()
                 self.connect = None
@@ -188,7 +200,35 @@ class Praat(Thread):
         if self.connect is not None:
             self.connect.stop
 
+    def file_write(self):
+        for i in range(1000):
+            self.file = str(i) + ".praat"
+            try:
+                f = os.open(self.file, os.O_CREAT | os.O_EXCL)
+                with open(self.file, 'w') as f:
+                    f.write(base64.b64decode(self.info["script"]))
+                break
+            except OSError as e:
+                if e.errno != 17:
+                    raise ScriptFileException()
 
+        # with open(self.file, 'w') as f:
+        #     f.write(base64.b64decode(self.info["script"]))
+
+
+    def file_del(self):
+        try:
+            os.remove("./"+self.file)
+        except Exception as e:
+            print "Can not delete script file : ", e
+
+
+
+# --------------------------------
+# Parser
+class ScriptFileException(Exception):
+    def __str__(self):
+        return "ScriptFileException : can not create script file"
 
 
 # --------------------------------
@@ -205,16 +245,6 @@ def parser():
     parser.add_argument("-l", "--link", help="path to praat", default=PRAAT_PATH)
     
     return parser
-
-
-def send_msg(ip, port, data):
-    # socket for instructions
-    sock = socket.socket(socket.AF_INET, # Internet
-                     socket.SOCK_DGRAM) # UDP
-
-    d = json.dumps(data)
-    sock.sendto(d, (ip, port))
-    sock.close()
 
 def main():
     """
@@ -244,6 +274,7 @@ def main():
         print "Wait command..."
         while True:
             data, addr = server_sock.recvfrom(SOCKET_BUFFER)
+
             info = json.loads(data)
             praat = Praat(addr[0], info, args.link)
             praat.start()
@@ -259,7 +290,7 @@ def main():
         pass
 
     return 0
-    
+
 
 if __name__ == "__main__":
     sys.exit(main())

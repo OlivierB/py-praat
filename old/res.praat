@@ -57,6 +57,7 @@ Set target... 1.0   0.09 Hyoglossus
 select Artword phon
 plus Speaker Robovox
 To Sound... 22050 25   0 0 0    0 0 0    0 0 0
+#To Sound... 22050 25   0 0 0    0 0 0    0 0 0
 #-----------------------------------------------
 #-----------------------------------------------
 # Automatic data extraction par
@@ -74,7 +75,9 @@ endfor
 # convert it into string for sendsocket
 temp1$=string$(varTabFreq[1])
 temp2$=string$(varTabFreq[2])
-sendsocket 'address$':'port' 'temp1$' 'temp2$'
+#sendsocket 'address$':'port' 'temp1$' 'temp2$'
+writeInfoLine(temp1$, " - ", temp2$)
 else
-sendsocket 'address$':'port' INF
+#sendsocket 'address$':'port' INF
+writeInfoLine("rien")
 endif

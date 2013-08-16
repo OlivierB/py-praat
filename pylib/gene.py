@@ -131,19 +131,19 @@ def genetic_algo():
         # The population is entirely replaced by the offspring
         pop[:] = offspring
 
-        # # Save average evolution
-        # sum_a = 0
-        # sum_b = 0
-        # nb = 0
-        # for elem in pop:
-        #     val = elem.fitness.values
-        #     if val[0] != 0 and val[1] != 0:
-        #         nb += 1
-        #         sum_a += val[0]
-        #         sum_b += val[1]
+        # Save average evolution
+        sum_a = 0
+        sum_b = 0
+        nb = 0
+        for elem in pop:
+            val = elem.fitness.values
+            if val[0] != 0 and val[1] != 0:
+                nb += 1
+                sum_a += val[0]
+                sum_b += val[1]
 
-        # spamwriter.writerow([str(g+1), str(sum_a/nb), str(sum_b/nb), str(len(pop)-nb)])
-        # csvfile.flush()
+        spamwriter.writerow([str(g+1), str(sum_a/nb), str(sum_b/nb), str(len(pop)-nb)])
+        csvfile.flush()
 
         print "--------------------"
 

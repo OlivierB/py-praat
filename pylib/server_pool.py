@@ -21,9 +21,12 @@ from bashutils import colors
 
 
 SERVER_IP_POOL = [
-    # ("192.168.1.135", 5005),
-    # ("192.168.1.123", 5005),
-    ("192.168.1.134", 5005),
+    ("192.168.1.123", 5005), # SMB30623
+    ("192.168.1.134", 5005), # SMB30628
+    # ("192.168.1.144", 5005), # SMB30622
+    # ("192.168.1.146", 5005), # SMB30632
+    # ("192.168.1.92", 5005), # SMB30631
+    
 ]
 
 CLIENT_PORT = 5004
@@ -103,15 +106,20 @@ class ResultManager(Thread):
     def is_end(self):
         r = True
         for e in self.l_result:
-            if e == None or (type(e) is float and e < (time() + IGNORE_TIME_SEC)):
+            if e == None or type(e) is float:
                 r = False
                 break
         return r
 
+    def check_timeout(self):
+        for n, e in enumerate(self.l_result):
+            if type(e) is float and (e + IGNORE_TIME_SEC) <= time():
+                self.l_result[n] = None
+
     def nbr_server_running(self):
         nb = 0
         for e in self.l_result:
-            if type(e) is float and e < (time() + IGNORE_TIME_SEC):
+            if type(e) is float:
                 nb += 1
         return nb
 
@@ -167,6 +175,10 @@ class PoolManager():
 
             # Loop
             while not self.pool_recv.is_end():
+                # check if some computer are out of the time
+                self.pool_recv.check_timeout()
+
+                # get id
                 identifier = self.pool_recv.get_id()
 
                 if self.pool_recv.nbr_server_running() < self.max_th and identifier is not None:

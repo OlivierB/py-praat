@@ -19,7 +19,7 @@ FORMANT_A = 405
 FORMANT_B = 2080
 
 IND_SIZE = 16
-POP_SIZE = 2
+POP_SIZE = 10
 
 NB_GEN = 4
 CXPB = 0.5
@@ -91,6 +91,7 @@ def genetic_algo():
     csvfile = open('glance.csv', 'wb')
     spamwriter = csv.writer(csvfile, delimiter=',',
                             quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    spamwriter.writerow(["N", "A", "B", "Error"])
 
     # ------------------------------
     # ALGO
@@ -123,17 +124,26 @@ def genetic_algo():
         # fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
         fitnesses = fitness_calc(invalid_ind)
 
-        if len(fitnesses) > 0:
-            r_elem_pos = random.randrange(0, len(fitnesses))
-            r_elem = fitnesses[r_elem_pos]
-            spamwriter.writerow([str(g+1), str(r_elem[0]), str(r_elem[1])])
-            csvfile.flush()
 
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
         # The population is entirely replaced by the offspring
         pop[:] = offspring
+
+        # # Save average evolution
+        # sum_a = 0
+        # sum_b = 0
+        # nb = 0
+        # for elem in pop:
+        #     val = elem.fitness.values
+        #     if val[0] != 0 and val[1] != 0:
+        #         nb += 1
+        #         sum_a += val[0]
+        #         sum_b += val[1]
+
+        # spamwriter.writerow([str(g+1), str(sum_a/nb), str(sum_b/nb), str(len(pop)-nb)])
+        # csvfile.flush()
 
         print "--------------------"
 

@@ -269,7 +269,7 @@ def main():
                 if "cmd" in info and "port" in info:
                     if info["cmd"] == "ping":
                         print "ping"
-                        send_udp_msg(addr[0], info["port"], dict(stdout="", stderr="", time=time(), cmd="ping"))
+                        send_udp_msg(addr[0], info["port"], dict(stdout="", stderr="", time=time(), cmd="ping", maxth=args.max))
                     elif info["cmd"] == "praat":
                         praat = Praat(addr[0], info, args.link)
                         praat.start()

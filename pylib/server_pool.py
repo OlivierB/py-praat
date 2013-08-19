@@ -23,9 +23,9 @@ from bashutils import colors
 SERVER_IP_POOL = [
     ("192.168.1.123", 5005), # SMB30623
     ("192.168.1.134", 5005), # SMB30628
-    ("192.168.1.144", 5005), # SMB30622
+    # ("192.168.1.144", 5005), # SMB30622
     # ("192.168.1.146", 5005), # SMB30632
-    ("192.168.1.93", 5005), # SMB30631
+    # ("192.168.1.93", 5005), # SMB30631
     
 ]
 
@@ -33,7 +33,8 @@ CLIENT_PORT = 5004
 SOCKET_BUFFER = 1500
 
 # After this time, algo stop to wait a result
-IGNORE_TIME_SEC = 60
+IGNORE_TIME_SEC = 120
+PING_TIMEOUT = 1
 
 class ResultManager(Thread):
 
@@ -71,25 +72,38 @@ class ResultManager(Thread):
                     # receive data
                     data, addr = self.server_sock.recvfrom(SOCKET_BUFFER)
 
-                    # decode data
-                    info = json.loads(data)
-
-                    # inforamation
-                    # print "From %s - Id thread %i :" % (addr[0], info["id"])
-                    # for k in ["stdout", "stderr", "time", "result"]:
-                    #     print "\t%s : %r" % (k, info[k])
-
-                    self.l_result[info["id"]] = info["result"]
-
-                    # Display
-                    self.display()
-
-                    # Check if this is finish
-                    if self.is_end():
-                        self.term = True
-                        sys.stdout.write("\n")
+                    try:
+                        # decode data
+                        info = json.loads(data)
 
 
+                        ok = True
+
+                        for elem in ["id", "result"]:
+                            if elem not in info:
+                                ok = False
+
+                        if ok:
+                            pos = info["id"]
+                            if pos >= 0 and pos < self.size and self.l_result[pos] is not None:
+                                self.l_result[pos] = info["result"]
+                            else:
+                                print "Can not keep this result"
+
+                            # Display
+                            self.display()
+
+                            # Check if this is finish
+                            if self.is_end():
+                                self.term = True
+                                sys.stdout.write("\n")
+
+                        else:
+                            print "Something wrong with this packet"
+
+
+                    except Exception as e:
+                        print "Receive error :", e
 
                 except socket.timeout:
                     pass
@@ -143,7 +157,6 @@ class ResultManager(Thread):
         percent = self.nbr_ended_result() / (self.size * 1.0) * 100
         done = int(percent/adapt)
         todo = int(100-percent)/adapt
-        # print percent, done, (100/adapt - done)
         text = colors.color_text("|"*done + " "*todo, color="green", bcolor="none", effect="none")
         sys.stdout.write("\rProgress : [%s] - %i%%" % (text, percent))
         sys.stdout.flush()
@@ -156,15 +169,68 @@ class PoolManager():
         self.ind_list = ind_list
 
         self.spool = RingList()
-        self.max_th = len(SERVER_IP_POOL)
+        self.max_th = 0 # len(SERVER_IP_POOL)
 
         self.pool_recv = None
 
 
+    def check_pool(self):
+        server_sock = None
+        message = dict()
+        message["cmd"] = "ping"
+        message["port"] = CLIENT_PORT
+
+        try:
+            server_sock = socket.socket(socket.AF_INET, # Internet
+                             socket.SOCK_DGRAM) # UDP
+            server_sock.bind(("", CLIENT_PORT))
+
+            server_sock.settimeout(PING_TIMEOUT)
+
+            for address, port in SERVER_IP_POOL:
+                send_udp_msg(address, port, message)
+
+                try:
+                    # receive data
+                    data, addr = server_sock.recvfrom(SOCKET_BUFFER)
+
+                    try:
+                        # decode data
+                        info = json.loads(data)
+
+                        if addr[0] == address and "cmd" in info and info["cmd"] == "ping":
+                            self.spool.add((address, port))
+                        else:
+                            print "Ping error"
+
+                    except Exception as e:
+                        print "Ping receive error :", e
+                    
+                except socket.timeout:
+                    pass
+
+
+        except Exception as e:
+            print "Ping error :", e
+        finally:
+            server_sock.close()
+
+        self.max_th = len(self.spool.lelem)
+
+
     def run(self):
         # Server pool
-        for addr in SERVER_IP_POOL:
-            self.spool.add(addr)
+        sys.stdout.write("Looking for available server...")
+        sys.stdout.flush()
+        while self.max_th <= 0:
+            self.check_pool()
+            if self.max_th <= 0:
+                sys.stdout.write(".")
+                sys.stdout.flush()
+        sys.stdout.write("\n\t-> %i servers found:\n" % len(self.spool.lelem))
+
+        for elem in self.spool.lelem:
+            print "\t\t%s" % elem[0]
 
         try:
             # Create receiver and start it
@@ -206,9 +272,10 @@ class PoolManager():
     def create_message(self, identifier, individual, client_port):
         message = dict()
         message["id"] = identifier
-        message["cmd"] = "Do it !"
-        message["script"] = base64.b64encode(getScript(individual))
+        message["cmd"] = "praat"
         message["port"] = client_port
+        message["script"] = base64.b64encode(getScript(individual))
+        
 
         return message
 

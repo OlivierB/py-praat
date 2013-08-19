@@ -15,6 +15,7 @@ import json
 import socket
 import argparse
 import base64
+from tempfile import NamedTemporaryFile
 from time import time, sleep
 from threading import Thread
 from subprocess import Popen, PIPE
@@ -26,6 +27,8 @@ SERV_PORT = 5005
 PRAAT_START_PORT = 10000
 PRAAT_PATH = "./praat"
 SOCKET_BUFFER = 50000
+
+MAX_THREAD = 1
 
 
 class tcp_server(Thread):
@@ -165,9 +168,13 @@ class Praat(Thread):
         res = ""
         start_t = time()
         port = pl.get()
+        self.file = None
 
         try:
-            self.file_write()
+            # temporary script file
+            self.file = NamedTemporaryFile(mode='w', suffix='.praat', prefix='script_')
+            self.file.write(base64.b64decode(self.info["script"]))
+            self.file.flush()
 
             # get sendpraat
             self.connect = tcp_server("Thread %s - Id %i" % (self.address, self.info["id"]), SERV_NAME, port)
@@ -175,7 +182,7 @@ class Praat(Thread):
 
             # start praat
             start_t = time()
-            self.process = Popen([self.praat, self.file, SERV_NAME, str(port)], stdout=PIPE) #res.praat : test file
+            self.process = Popen([self.praat, self.file.name, SERV_NAME, str(port)], stdout=PIPE) #res.praat : test file
 
             # print "%s Wait..." % self.pref
             stdo, stde = self.process.communicate()
@@ -189,7 +196,10 @@ class Praat(Thread):
         finally:
             send_udp_msg(self.address, self.info["port"], dict(id=self.info["id"], stdout=stdo, stderr=stde, time=(time() - start_t), result=res))
             pl.free(port)
-            self.file_del()
+
+            if self.file is not None:
+                self.file.close()
+
             if self.connect is not None:
                 self.connect.stop()
                 self.connect = None
@@ -199,29 +209,6 @@ class Praat(Thread):
     def stop(self):
         if self.connect is not None:
             self.connect.stop
-
-    def file_write(self):
-        for i in range(1000):
-            self.file = str(i) + ".praat"
-            try:
-                f = os.open(self.file, os.O_CREAT | os.O_EXCL)
-                with open(self.file, 'w') as f:
-                    f.write(base64.b64decode(self.info["script"]))
-                break
-            except OSError as e:
-                if e.errno != 17:
-                    raise ScriptFileException()
-
-        # with open(self.file, 'w') as f:
-        #     f.write(base64.b64decode(self.info["script"]))
-
-
-    def file_del(self):
-        try:
-            os.remove("./"+self.file)
-        except Exception as e:
-            print "Can not delete script file : ", e
-
 
 
 # --------------------------------
@@ -241,8 +228,10 @@ def parser():
     # init
     parser.description = "%s" % ("Praat multi-launch")
 
+    parser.add_argument("-m", "--max", type=int, help="max simultaneous thread", default=MAX_THREAD)
     parser.add_argument("-p", "--port", type=int, help="server port", default=SERV_PORT)
     parser.add_argument("-l", "--link", help="path to praat", default=PRAAT_PATH)
+    
     
     return parser
 
@@ -252,15 +241,7 @@ def main():
     """
     args = parser().parse_args()
 
-    # socket for instructions
-    server_sock = socket.socket(socket.AF_INET, # Internet
-                     socket.SOCK_DGRAM) # UDP
-    server_sock.bind(("", args.port))
-
-
-    # list of process and associated thread
-    lpraat = list()
-    counter = 0
+    server_sock = None
 
     pl = PortList()
     pl.config(PRAAT_START_PORT, PRAAT_START_PORT+100)
@@ -268,26 +249,40 @@ def main():
     print "Server name :", SERV_NAME
     print "Server port :", args.port
     print "Praat start port :", PRAAT_START_PORT
+    print "Max simultaneous thread :", args.max
     print "------------------"
 
     try:
+        # socket for instructions
+        server_sock = socket.socket(socket.AF_INET, # Internet
+                         socket.SOCK_DGRAM) # UDP
+        server_sock.bind(("", args.port))
+
+
         print "Wait command..."
         while True:
             data, addr = server_sock.recvfrom(SOCKET_BUFFER)
 
-            info = json.loads(data)
-            praat = Praat(addr[0], info, args.link)
-            praat.start()
-            lpraat.append(praat)
+            try:
+                info = json.loads(data)
+
+                if "cmd" in info and "port" in info:
+                    if info["cmd"] == "ping":
+                        print "ping"
+                        send_udp_msg(addr[0], info["port"], dict(stdout="", stderr="", time=time(), cmd="ping"))
+                    elif info["cmd"] == "praat":
+                        praat = Praat(addr[0], info, args.link)
+                        praat.start()
+
+            except Exception as e:
+                print "Receive error :", e
         
     except KeyboardInterrupt:
         print "Stopping..."
         print "------------------"
     finally:
-        server_sock.close()
-        for praat in lpraat:
-            praat.stop()
-        pass
+        if server_sock is not None:
+            server_sock.close()
 
     return 0
 

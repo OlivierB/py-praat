@@ -53,8 +53,6 @@ def main():
     try:
         res = genetic_algo()
 
-        # for elem in res:
-        #     print elem
     except KeyboardInterrupt:
         pass
 

@@ -19,9 +19,9 @@ FORMANT_A = 405
 FORMANT_B = 2080
 
 IND_SIZE = 16
-POP_SIZE = 4
+POP_SIZE = 8
 
-NB_GEN = 2
+NB_GEN = 3
 CXPB = 0.5
 MUTPB = 0.2
 
@@ -144,6 +144,13 @@ def genetic_algo():
 
         spamwriter.writerow([str(g+1), str(sum_a/nb), str(sum_b/nb), str((sum_a+sum_b)/nb/2), str(len(pop)-nb)])
         csvfile.flush()
+
+        try:
+            resss = min(pop, key = lambda elem: (elem.fitness.values[0]+elem.fitness.values[1])/2)
+
+            print "Min :", resss.fitness.values
+        except Exception:
+            pass
 
         # min(e, key = lambda t: (t[0]+t[1])/2)
 

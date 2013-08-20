@@ -21,19 +21,20 @@ from bashutils import colors
 
 
 SERVER_IP_POOL = [
-    ("192.168.1.123", 5005), # SMB30623
+    # ("192.168.1.123", 5005), # SMB30623
     ("192.168.1.134", 5005), # SMB30628
     # ("192.168.1.144", 5005), # SMB30622
-    ("192.168.1.146", 5005), # SMB30632
-    ("192.168.1.93", 5005), # SMB30631
+    # ("192.168.1.146", 5005), # SMB30632
+    # ("192.168.1.93", 5005), # SMB30631
     
 ]
 
 CLIENT_PORT = 5004
+PING_PORT = 5006
 SOCKET_BUFFER = 1500
 
 # After this time, algo stop to wait a result
-IGNORE_TIME_SEC = 60
+IGNORE_TIME_SEC = 120
 PING_TIMEOUT = 1
 
 class ResultManager(Thread):
@@ -61,7 +62,15 @@ class ResultManager(Thread):
         try:
             self.server_sock = socket.socket(socket.AF_INET, # Internet
                          socket.SOCK_DGRAM) # UDP
-            self.server_sock.bind(("", CLIENT_PORT))
+            
+            while 1:
+                try:
+                    self.server_sock.bind(("", CLIENT_PORT))
+                    break
+                except socket.error as e:
+                    sleep(0.02)
+                    if e.errno != 98:
+                        raise e
 
             self.server_sock.settimeout(1)
 
@@ -87,11 +96,12 @@ class ResultManager(Thread):
 
                         if ok:
                             pos = info["id"]
-                            if pos >= 0 and pos < self.size and self.l_result[pos] is not None:
+                            if pos >= 0 and pos < self.size and  type(self.l_result[pos]) is float:
                                 self.l_result[pos] = info["result"]
                                 self.listserv.unlock_serv_capacity(pos)
+                                print info["result"], addr
                             else:
-                                print "Can not keep this result"
+                                print "Cannot keep this result :", pos, type(self.l_result[pos])
 
                             # Display
                             self.display()
@@ -99,7 +109,6 @@ class ResultManager(Thread):
                             # Check if this is finish
                             if self.is_end():
                                 self.term = True
-                                sys.stdout.write("\n")
 
                         else:
                             print "Something wrong with this packet"
@@ -113,6 +122,7 @@ class ResultManager(Thread):
         finally:
             if self.server_sock is not None:
                 self.server_sock.close()
+            sys.stdout.write("\n")
 
 
     def stop(self):
@@ -263,12 +273,12 @@ class PoolManager():
         server_sock = None
         message = dict()
         message["cmd"] = "ping"
-        message["port"] = CLIENT_PORT
+        message["port"] = PING_PORT
 
         try:
             server_sock = socket.socket(socket.AF_INET, # Internet
                              socket.SOCK_DGRAM) # UDP
-            server_sock.bind(("", CLIENT_PORT))
+            server_sock.bind(("", PING_PORT))
 
             server_sock.settimeout(PING_TIMEOUT)
 
@@ -284,7 +294,7 @@ class PoolManager():
                         info = json.loads(data)
 
                         if addr[0] == address and "cmd" in info and info["cmd"] == "ping":
-                            if "maxth" in info and info["maxth"] >= 1:
+                            if "maxth" in info and info["maxth"] >= 0:
                                 self.spool.add(address, port, info["maxth"])
                             else:
                                 self.spool.add(address, port, 1)
@@ -299,7 +309,8 @@ class PoolManager():
 
 
         except Exception as e:
-            print "Ping error :", e
+            # print "Ping error :", e
+            pass
         finally:
             server_sock.close()
 

@@ -21,11 +21,11 @@ from bashutils import colors
 
 
 SERVER_IP_POOL = [
-    # ("192.168.1.123", 5005), # SMB30623
+    ("192.168.1.123", 5005), # SMB30623
     ("192.168.1.134", 5005), # SMB30628
     # ("192.168.1.144", 5005), # SMB30622
-    # ("192.168.1.146", 5005), # SMB30632
-    # ("192.168.1.93", 5005), # SMB30631
+    ("192.168.1.146", 5005), # SMB30632
+    ("192.168.1.93", 5005), # SMB30631
     
 ]
 
@@ -99,7 +99,7 @@ class ResultManager(Thread):
                             if pos >= 0 and pos < self.size and  type(self.l_result[pos]) is float:
                                 self.l_result[pos] = info["result"]
                                 self.listserv.unlock_serv_capacity(pos)
-                                print info["result"], addr
+                                # print info["result"], addr
                             else:
                                 print "Cannot keep this result :", pos, type(self.l_result[pos])
 
